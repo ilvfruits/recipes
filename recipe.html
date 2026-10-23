@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Recipe · The Recipe Notebook</title>
+  <script src="libs/sql-wasm.js"></script>
+  <script src="common.js"></script>
+  <style>
+    :root { --bg:#fbf7f2; --fg:#2b241f; --muted:#7a6a5a; --accent:#b4643a; --border:#e6ded3; --panel:#fff; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Georgia, serif;
+           background:var(--bg); color:var(--fg); line-height:1.6; }
+    .container { max-width: 900px; margin: 2rem auto; padding: 0 1.5rem; }
+    .back-link { display:inline-block; color:var(--accent); text-decoration:none; margin-bottom:1rem; }
+    .back-link:hover { text-decoration: underline; }
+    .eyebrow { font-size:0.72rem; letter-spacing:0.14em; text-transform:uppercase;
+               color:var(--accent); font-weight:600; }
+    h1 { font-family:Georgia, serif; margin:0.25rem 0 0.5rem; }
+    h2 { font-family:Georgia, serif; margin: 1.5rem 0 0.5rem; }
+    .group-title { font-size:0.82rem; font-weight:600; letter-spacing:0.1em;
+                   text-transform:uppercase; color:var(--accent); margin: 1rem 0 0.4rem; }
+    .detail-image { width:100%; max-height:420px; object-fit:cover;
+                    border-radius:14px; margin-bottom:1rem; }
+    .detail-description { color:var(--muted); margin: 0 0 1rem; }
+    .detail-meta { display:flex; gap:2rem; padding:0.75rem 0;
+                   border-top:1px solid var(--border);
+                   border-bottom:1px solid var(--border); margin: 1rem 0 1.5rem; }
+    .detail-meta small { display:block; font-size:0.65rem; letter-spacing:0.14em; color:var(--muted); }
+    .detail-columns { display:grid; gap:2rem; grid-template-columns:1fr 1.4fr; }
+    @media (max-width:720px) { .detail-columns { grid-template-columns:1fr; } }
+    .ingredient-list, .instruction-list { padding-left:1.25rem; }
+    .instruction-list { counter-reset: step; list-style:none; padding-left:2rem; }
+    .instruction-list li { counter-increment: step; position:relative; margin-bottom:0.65rem; }
+    .instruction-list li::before { content: counter(step) "."; position:absolute;
+                                    left:-1.75rem; font-weight:600; color:var(--accent); }
+    .tag-list { display:flex; flex-wrap:wrap; gap:0.4rem; margin-top:1.5rem; }
+    .tag-list span { font-size:0.75rem; color:var(--muted); background:var(--panel);
+                     border:1px solid var(--border); border-radius:999px; padding:0.15rem 0.6rem; }
+    .updated-note { color:var(--muted); font-size:0.8rem; margin-top:1.5rem; }
+    .error { color:#b13131; padding:2rem 0; text-align:center; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <a class="back-link" href="index.html">← All recipes</a>
+    <div id="recipe">Loading…</div>
+  </div>
+
+  <script>
+    function getId() {
+      const params = new URLSearchParams(window.location.search);
+      const id = params.get('id');
+      return id ? Number(id) : null;
+    }
+
+    async function init() {
+      const id = getId();
+      const holder = document.getElementById('recipe');
+      if (!id) {
+        holder.innerHTML = '<div class="error">No recipe specified.</div>';
+        return;
+      }
+
+      const db = await openDatabase();
+      const rows = queryObjects(db, "SELECT * FROM recipe WHERE id = ?", [id]);
+      if (!rows.length) {
+        holder.innerHTML = '<div class="error">Recipe not found.</div>';
+        return;
+      }
+
+      const r = rows[0];
+      document.title = `${r.title} · The Recipe Notebook`;
+
+      let html = '';
+      if (r.image_url) html += `<img class="detail-image" src="${esc(r.image_url)}" alt="${esc(r.title)}">`;
+      if (r.category) html += `<div class="eyebrow">${esc(r.category)}</div>`;
+      html += `<h1>${esc(r.title)}</h1>`;
+      if (r.description) html += `<p class="detail-description">${esc(r.description)}</p>`;
+      html += renderMeta(r);
+      html += '<div class="detail-columns">';
+      html += `<section>${renderIngredients(r)}</section>`;
+      html += `<section>${renderInstructions(r)}</section>`;
+      html += '</div>';
+      if (r.tags) {
+        html += '<div class="tag-list">';
+        r.tags.split(',').forEach(t => {
+          if (t.trim()) html += `<span>#${esc(t.trim())}</span>`;
+        });
+        html += '</div>';
+      }
+      if (r.updated_at) {
+        html += `<p class="updated-note">Last updated ${esc(String(r.updated_at).slice(0, 10))}</p>`;
+      }
+
+      holder.innerHTML = html;
+    }
+
+    init().catch(err => {
+      console.error(err);
+      document.getElementById('recipe').innerHTML =
+        '<div class="error">Failed to load recipe. See console.</div>';
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>The Recipe Notebook</title>
+  <script src="libs/sql-wasm.js"></script>
+  <script src="common.js"></script>
+  <style>
+    :root { --bg:#fbf7f2; --fg:#2b241f; --muted:#7a6a5a; --accent:#b4643a; --border:#e6ded3; --panel:#fff; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Georgia, serif;
+           background:var(--bg); color:var(--fg); line-height:1.6; }
+    .container { max-width: 900px; margin: 2rem auto; padding: 0 1.5rem; }
+    h1 { font-family: Georgia, serif; margin: 0.25rem 0 1rem; }
+    .eyebrow { font-size:0.72rem; letter-spacing:0.14em; text-transform:uppercase;
+               color:var(--accent); font-weight:600; }
+    #search { width:100%; padding:0.75rem 1rem; font-size:1rem;
+              border:1px solid var(--border); border-radius:10px; background:#fff;
+              margin-bottom:1.5rem; }
+    #search:focus { outline:2px solid var(--accent); outline-offset:-1px; }
+    .recipe-list { display:grid; gap:0.75rem; }
+    .recipe-item { background:var(--panel); border:1px solid var(--border);
+                   border-radius:10px; padding:1rem 1.25rem; }
+    .recipe-item a { color:inherit; text-decoration:none; display:block; }
+    .recipe-item a:hover h2 { color:var(--accent); }
+    .recipe-item h2 { margin:0.15rem 0 0.25rem; font-family:Georgia, serif;
+                      font-size:1.15rem; transition:color 0.15s ease; }
+    .recipe-item p { margin:0.25rem 0 0; color:var(--muted); font-size:0.9rem; }
+    .empty { color:var(--muted); text-align:center; padding:2rem 0; }
+    .count { color:var(--muted); font-size:0.85rem; margin-bottom:0.75rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="eyebrow">RECIPE COLLECTION</div>
+    <h1>All recipes</h1>
+
+    <input id="search" type="search" placeholder="Search by title, category, or tag…" autocomplete="off">
+
+    <div id="count" class="count"></div>
+    <div id="list" class="recipe-list">Loading recipes…</div>
+  </div>
+
+  <script>
+    let allRecipes = [];
+
+    async function init() {
+      const db = await openDatabase();
+      allRecipes = queryObjects(db,
+        "SELECT id, title, category, tags, description FROM recipe ORDER BY updated_at DESC");
+      render(allRecipes);
+    }
+
+    function render(list) {
+      const el = document.getElementById('list');
+      const count = document.getElementById('count');
+
+      if (!list.length) {
+        el.innerHTML = '<div class="empty">No recipes match your search.</div>';
+        count.textContent = `0 of ${allRecipes.length} recipes`;
+        return;
+      }
+
+      count.textContent = `${list.length} of ${allRecipes.length} recipes`;
+      el.innerHTML = list.map(r => `
+        <div class="recipe-item">
+          <a href="recipe.html?id=${encodeURIComponent(r.id)}">
+            ${r.category ? `<div class="eyebrow">${esc(r.category)}</div>` : ''}
+            <h2>${esc(r.title)}</h2>
+            ${r.description ? `<p>${esc(r.description)}</p>` : ''}
+          </a>
+        </div>
+      `).join('');
+    }
+
+    function filter(q) {
+      q = q.trim().toLowerCase();
+      if (!q) return render(allRecipes);
+      render(allRecipes.filter(r =>
+        [r.title, r.category, r.tags, r.description]
+          .filter(Boolean).join(' ').toLowerCase().includes(q)
+      ));
+    }
+
+    document.getElementById('search').addEventListener('input', e => filter(e.target.value));
+
+    init().catch(err => {
+      console.error(err);
+      document.getElementById('list').innerHTML =
+        '<div class="empty">Failed to load recipes. See console.</div>';
+    });
+  </script>
+</body>
+</html>
